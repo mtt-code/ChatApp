@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chat</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --panel: #ffffff; --text: #1b1f24; --muted: #6b7280;
+    --border: #e3e6ea; --accent: #3b6df6; --accent-text: #ffffff;
+    --bubble: #f0f2f5; --danger: #e5484d; --ok: #2e8b57;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a; --panel: #1c1f25; --text: #e8eaed; --muted: #9aa1ab;
+      --border: #2b2f37; --accent: #6b8cff; --accent-text: #0b0d12;
+      --bubble: #262a32; --danger: #ff6b70; --ok: #4cc38a;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  button, input, textarea { font: inherit; color: inherit; }
+  .hidden { display: none !important; }
+
+  /* ---------- auth ---------- */
+  #auth { min-height: 100%; display: grid; place-items: center; padding: 20px; }
+  .card {
+    width: 100%; max-width: 380px; background: var(--panel); border: 1px solid var(--border);
+    border-radius: 16px; padding: 32px 28px;
+  }
+  .card h1 { margin: 0 0 4px; font-size: 24px; }
+  .card p.sub { margin: 0 0 20px; color: var(--muted); }
+  .field {
+    width: 100%; padding: 11px 13px; margin: 6px 0; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--bg); outline: none;
+  }
+  .field:focus { border-color: var(--accent); }
+  .btn {
+    width: 100%; padding: 11px; margin-top: 10px; border: 0; border-radius: 10px; cursor: pointer;
+    background: var(--accent); color: var(--accent-text); font-weight: 600;
+  }
+  .btn:disabled { opacity: .6; cursor: default; }
+  .link { background: none; border: 0; color: var(--muted); cursor: pointer; width: 100%; margin-top: 12px; }
+  .msg { min-height: 20px; margin-top: 8px; font-size: 14px; color: var(--danger); }
+  .msg.ok { color: var(--ok); }
+
+  /* ---------- chat ---------- */
+  #chat { height: 100dvh; display: grid; grid-template-columns: 260px 1fr; }
+  aside {
+    background: var(--panel); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; min-height: 0;
+  }
+  aside h2 { margin: 0; padding: 16px 16px 8px; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  .side-scroll { overflow-y: auto; flex: 1; min-height: 0; }
+  .room, .person { padding: 7px 16px; display: flex; align-items: center; gap: 8px; }
+  .room { width: 100%; background: none; border: 0; text-align: left; cursor: pointer; }
+  .room:hover { background: var(--bg); }
+  .room.active { background: var(--bg); font-weight: 600; box-shadow: inset 3px 0 var(--accent); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); flex: none; }
+  .join { display: flex; gap: 6px; padding: 8px 12px; }
+  .join .field { margin: 0; padding: 8px 10px; }
+  .join button { border: 0; border-radius: 10px; padding: 0 12px; background: var(--accent); color: var(--accent-text); cursor: pointer; font-weight: 600; }
+
+  main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  header {
+    display: flex; align-items: center; gap: 10px; padding: 12px 16px;
+    background: var(--panel); border-bottom: 1px solid var(--border);
+  }
+  header h3 { margin: 0; font-size: 17px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #status { font-size: 13px; color: var(--muted); }
+  #status.bad { color: var(--danger); }
+  .ghost { background: none; border: 1px solid var(--border); border-radius: 8px; padding: 5px 10px; cursor: pointer; }
+  #menu { display: none; }
+  #messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .row { display: flex; gap: 10px; max-width: 760px; }
+  .avatar {
+    width: 34px; height: 34px; border-radius: 50%; flex: none; display: grid; place-items: center;
+    color: #fff; font-weight: 700; font-size: 14px;
+  }
+  .meta { font-size: 13px; color: var(--muted); }
+  .meta b { color: var(--text); margin-right: 6px; }
+  .meta b.me { color: var(--accent); }
+  .text { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .empty { margin: auto; color: var(--muted); }
+  .notice { align-self: center; font-size: 13px; color: var(--muted); }
+  .composer { display: flex; gap: 8px; padding: 12px 16px; background: var(--panel); border-top: 1px solid var(--border); }
+  .composer textarea {
+    flex: 1; resize: none; max-height: 140px; padding: 10px 13px; border-radius: 12px;
+    border: 1px solid var(--border); background: var(--bg); outline: none;
+  }
+  .composer textarea:focus { border-color: var(--accent); }
+  .composer button { width: auto; margin: 0; padding: 0 20px; }
+  #toast { position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 8px 14px; border-radius: 10px; font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .2s; }
+  #toast.show { opacity: .95; }
+
+  @media (max-width: 720px) {
+    #chat { grid-template-columns: 1fr; }
+    aside { position: fixed; inset: 0 auto 0 0; width: 78%; max-width: 300px; z-index: 5; transform: translateX(-100%); transition: transform .2s; }
+    aside.open { transform: none; box-shadow: 0 0 0 100vmax rgba(0,0,0,.4); }
+    #menu { display: inline-block; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ AUTH ============ -->
+<div id="auth" class="hidden">
+  <div class="card">
+    <h1 id="auth-title">Welcome back</h1>
+    <p class="sub" id="auth-sub">Sign in to join the chat</p>
+    <input id="f-identifier" class="field" placeholder="Username or email" autocomplete="username">
+    <input id="f-username" class="field hidden" placeholder="Username (3-20: a-z, 0-9, _)" autocomplete="username">
+    <input id="f-email" class="field hidden" type="email" placeholder="Email" autocomplete="email">
+    <input id="f-password" class="field" type="password" placeholder="Password" autocomplete="current-password">
+    <input id="f-confirm" class="field hidden" type="password" placeholder="Confirm password" autocomplete="new-password">
+    <div id="auth-msg" class="msg"></div>
+    <button id="auth-submit" class="btn">Sign in</button>
+    <button id="auth-switch" class="link">No account? Register</button>
+  </div>
+</div>
+
+<!-- ============ CHAT ============ -->
+<div id="chat" class="hidden">
+  <aside id="side">
+    <h2>Rooms</h2>
+    <div class="side-scroll">
+      <div id="rooms"></div>
+      <form class="join" id="join-form">
+        <input id="join-input" class="field" placeholder="Join or create room" maxlength="30">
+        <button>Go</button>
+      </form>
+      <h2>Online here</h2>
+      <div id="people"></div>
+    </div>
+  </aside>
+  <main>
+    <header>
+      <button id="menu" class="ghost" aria-label="Rooms">☰</button>
+      <h3 id="room-title"># general</h3>
+      <span id="status">connecting…</span>
+      <button id="logout" class="ghost"></button>
+    </header>
+    <div id="messages"></div>
+    <form class="composer" id="composer">
+      <textarea id="input" rows="1" maxlength="500" placeholder="Write a message…"></textarea>
+      <button class="btn">Send</button>
+    </form>
+  </main>
+</div>
+<div id="toast"></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const ROOM_RE = /^[a-z0-9_-]{1,30}$/;
+
+function load(key, fallback) { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } }
+function save(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} }
+
+let me = null, room = load("room", "general"), rooms = load("rooms", ["general"]);
+let ws = null, retry = 0, reconnectTimer = null, pingTimer = null, seen = new Set();
+if (!ROOM_RE.test(room)) room = "general";
+if (!rooms.includes(room)) rooms.push(room);
+
+async function api(path, options = {}) {
+  const res = await fetch(path, { credentials: "same-origin", headers: { "Content-Type": "application/json" }, ...options });
+  let data = {};
+  try { data = await res.json(); } catch {}
+  if (!res.ok) throw new Error(typeof data.detail === "string" ? data.detail : "Please check your input.");
+  return data;
+}
+
+function toast(text) {
+  const t = $("#toast"); t.textContent = text; t.classList.add("show");
+  clearTimeout(toast.timer); toast.timer = setTimeout(() => t.classList.remove("show"), 2500);
+}
+
+/* ---------------- auth screen ---------------- */
+let mode = "login";
+function showAuth(message = "") {
+  closeSocket();
+  $("#chat").classList.add("hidden"); $("#auth").classList.remove("hidden");
+  setMode(mode); setAuthMsg(message);
+}
+function setAuthMsg(text, ok = false) { const m = $("#auth-msg"); m.textContent = text; m.classList.toggle("ok", ok); }
+function setMode(next) {
+  mode = next;
+  const login = mode === "login";
+  $("#auth-title").textContent = login ? "Welcome back" : "Create account";
+  $("#auth-sub").textContent = login ? "Sign in to join the chat" : "Pick a username to get started";
+  $("#auth-submit").textContent = login ? "Sign in" : "Create account";
+  $("#auth-switch").textContent = login ? "No account? Register" : "Have an account? Sign in";
+  $("#f-identifier").classList.toggle("hidden", !login);
+  for (const id of ["#f-username", "#f-email", "#f-confirm"]) $(id).classList.toggle("hidden", login);
+  $("#f-password").autocomplete = login ? "current-password" : "new-password";
+  setAuthMsg("");
+}
+$("#auth-switch").onclick = () => setMode(mode === "login" ? "register" : "login");
+for (const id of ["#f-identifier", "#f-username", "#f-email", "#f-password", "#f-confirm"])
+  $(id).addEventListener("keydown", (e) => { if (e.key === "Enter") submitAuth(); });
+$("#auth-submit").onclick = submitAuth;
+
+async function submitAuth() {
+  const password = $("#f-password").value;
+  const button = $("#auth-submit");
+  try {
+    button.disabled = true;
+    if (mode === "login") {
+      const identifier = $("#f-identifier").value.trim();
+      if (!identifier || !password) throw new Error("Enter your username/email and password.");
+      const data = await api("/api/login", { method: "POST", body: JSON.stringify({ identifier, password }) });
+      $("#f-password").value = "";
+      startChat(data.username);
+    } else {
+      if (password !== $("#f-confirm").value) throw new Error("Passwords do not match.");
+      await api("/api/register", { method: "POST", body: JSON.stringify({
+        username: $("#f-username").value.trim(), email: $("#f-email").value.trim(), password }) });
+      $("#f-identifier").value = $("#f-username").value.trim();
+      $("#f-password").value = ""; $("#f-confirm").value = "";
+      setMode("login"); setAuthMsg("Account created. You can sign in now.", true);
+    }
+  } catch (err) { setAuthMsg(err.message); }
+  finally { button.disabled = false; }
+}
+
+$("#logout").onclick = async () => { try { await api("/api/logout", { method: "POST" }); } catch {} me = null; mode = "login"; showAuth(); };
+
+/* ---------------- chat ---------------- */
+function startChat(username) {
+  me = username;
+  $("#auth").classList.add("hidden"); $("#chat").classList.remove("hidden");
+  $("#logout").textContent = `Log out (${username})`;
+  renderRooms(); switchRoom(room, true);
+  $("#input").focus();
+}
+
+function renderRooms() {
+  const box = $("#rooms"); box.textContent = "";
+  for (const name of rooms) {
+    const b = document.createElement("button");
+    b.className = "room" + (name === room ? " active" : "");
+    b.textContent = "# " + name;
+    b.onclick = () => { switchRoom(name); $("#side").classList.remove("open"); };
+    box.appendChild(b);
+  }
+}
+
+$("#join-form").onsubmit = (e) => {
+  e.preventDefault();
+  const name = $("#join-input").value.trim().toLowerCase();
+  if (!ROOM_RE.test(name)) return toast("Room names: a-z, 0-9, - and _ (max 30).");
+  if (!rooms.includes(name)) { rooms.push(name); save("rooms", rooms); }
+  $("#join-input").value = "";
+  switchRoom(name); $("#side").classList.remove("open");
+};
+$("#menu").onclick = () => $("#side").classList.toggle("open");
+
+function switchRoom(name, force = false) {
+  if (name === room && !force && ws) return;
+  room = name; save("room", room); renderRooms();
+  $("#room-title").textContent = "# " + room;
+  $("#people").textContent = "";
+  clearMessages();
+  connect();
+}
+
+function closeSocket() {
+  clearTimeout(reconnectTimer); clearInterval(pingTimer);
+  const old = ws; ws = null;
+  if (old) old.close();
+}
+
+function setStatus(text, bad = false) { const s = $("#status"); s.textContent = text; s.classList.toggle("bad", bad); }
+
+function connect() {
+  closeSocket(); retry = 0; open();
+}
+
+function open() {
+  setStatus("connecting…");
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  const sock = new WebSocket(`${proto}://${location.host}/ws?room=${encodeURIComponent(room)}`);
+  ws = sock;
+
+  sock.onopen = () => {
+    if (sock !== ws) return;
+    retry = 0; setStatus("online");
+    loadHistory();
+    clearInterval(pingTimer);
+    pingTimer = setInterval(() => sock.readyState === 1 && sock.send('{"type":"ping"}'), 25000);
+  };
+  sock.onmessage = (e) => {
+    if (sock !== ws) return;
+    const data = JSON.parse(e.data);
+    if (data.type === "message") addMessage(data, true);
+    else if (data.type === "presence") renderPeople(data.users);
+    else if (data.type === "error") toast(data.text);
+  };
+  sock.onclose = async (e) => {
+    if (sock !== ws) return;           // we closed it on purpose (room switch / logout)
+    clearInterval(pingTimer);
+    if (e.code === 4401) return showAuth("Your session expired. Please sign in again.");
+    setStatus("reconnecting…", true);
+    const delay = Math.min(1000 * 2 ** retry++, 15000);   // free hosts take ~1 min to wake up
+    reconnectTimer = setTimeout(open, delay);
+  };
+}
+
+async function loadHistory() {
+  try {
+    const rows = await api(`/api/messages?room=${encodeURIComponent(room)}`);
+    clearMessages();
+    rows.forEach((m) => addMessage(m, false));
+    scrollDown(true);
+  } catch (err) {
+    if (/signed in/i.test(err.message)) showAuth("Please sign in again.");
+  }
+}
+
+function renderPeople(users) {
+  const box = $("#people"); box.textContent = "";
+  for (const name of users) {
+    const d = document.createElement("div"); d.className = "person";
+    const dot = document.createElement("span"); dot.className = "dot";
+    d.append(dot, document.createTextNode(name + (name === me ? " (you)" : "")));
+    box.appendChild(d);
+  }
+}
+
+function clearMessages() {
+  seen = new Set();
+  const box = $("#messages"); box.textContent = "";
+  const e = document.createElement("div"); e.className = "empty"; e.id = "empty";
+  e.textContent = "No messages yet. Say hello!";
+  box.appendChild(e);
+}
+
+function color(name) {
+  let h = 0; for (const c of name) h = (h * 31 + c.charCodeAt(0)) % 360;
+  return `hsl(${h} 55% 45%)`;
+}
+function fmt(ts) {
+  const d = new Date(ts), now = new Date();
+  const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return d.toDateString() === now.toDateString() ? time : d.toLocaleDateString([], { month: "short", day: "numeric" }) + " " + time;
+}
+function scrollDown(force = false) {
+  const box = $("#messages");
+  if (force || box.scrollHeight - box.scrollTop - box.clientHeight < 140) box.scrollTop = box.scrollHeight;
+}
+
+function addMessage(m, live) {
+  if (seen.has(m.id)) return;
+  seen.add(m.id);
+  $("#empty")?.remove();
+
+  const row = document.createElement("div"); row.className = "row";
+  const av = document.createElement("div"); av.className = "avatar";
+  av.style.background = color(m.username); av.textContent = m.username[0].toUpperCase();
+  const body = document.createElement("div");
+  const meta = document.createElement("div"); meta.className = "meta";
+  const who = document.createElement("b"); who.textContent = m.username;
+  if (m.username === me) who.className = "me";
+  meta.append(who, document.createTextNode(fmt(m.ts)));
+  const text = document.createElement("div"); text.className = "text"; text.textContent = m.text;
+  body.append(meta, text); row.append(av, body);
+  $("#messages").appendChild(row);
+  if (live) scrollDown(m.username === me);
+}
+
+/* composer */
+const input = $("#input");
+function autosize() { input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, 140) + "px"; }
+input.addEventListener("input", autosize);
+input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("#composer").requestSubmit(); }
+});
+$("#composer").onsubmit = (e) => {
+  e.preventDefault();
+  const text = input.value.trim();
+  if (!text) return;
+  if (!ws || ws.readyState !== 1) return toast("Not connected yet — your message wasn't sent.");
+  ws.send(JSON.stringify({ type: "message", text }));
+  input.value = ""; autosize();
+};
+
+/* boot: already signed in? */
+(async () => {
+  try { const data = await api("/api/me"); startChat(data.username); }
+  catch { showAuth(); }
+})();
+</script>
+</body>
+</html>

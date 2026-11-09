@@ -1,0 +1,16 @@
+# Render Blueprint: New + > Blueprint > pick your repo.
+services:
+  - type: web
+    name: chat-app
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips "*"
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.3
+      - key: DATABASE_URL   # Neon connection string (you paste it in the dashboard)
+        sync: false
+      - key: AES_KEY        # your 32-byte base64 key (you paste it in the dashboard)
+        sync: false

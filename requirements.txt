@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+SQLAlchemy>=2.0
+cryptography
+itsdangerous
+psycopg[binary]
